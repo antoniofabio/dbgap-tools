@@ -1,0 +1,56 @@
+#!/usr/bin/env Rscript
+
+suppressMessages({
+  library(XML)
+  library(plyr)
+})
+
+args <- commandArgs(trailingOnly = TRUE)
+stopifnot(length(args) == 1)
+
+folder <- args[1]
+
+find <- function(where, what) {
+  cmd <- sprintf("find %s -path %s", shQuote(where), what)
+  system(cmd, intern = TRUE)
+}
+
+parseDict <- function(fname) {
+  if(grepl(".*\\.xml$", fname)) {
+    return(list(tryCatch(xmlToList(xmlParse(fname)),
+                         error = function(e) list(error = e))))
+  }
+  if(!grepl(".*\\.tar\\.gz$", fname)) {
+    stop("unrecognized file format: ", shQuote(fname))
+  }
+
+  f.tar.gz <- basename(fname)
+  TMPFOLDER <- tempdir()
+  on.exit({unlink(TMPFOLDER, recursive = TRUE, force = TRUE)})
+  destFolder <- file.path(TMPFOLDER, f.tar.gz)
+  dir.create(destFolder, showWarnings = FALSE, recursive = TRUE)
+  untar(fname, exdir = destFolder)
+  fs <- find(destFolder, "*.data_dict.xml")
+
+  return(llply(fs, parseDict))
+}
+
+##
+## MAIN LOOP
+##
+
+dict_files <- c(find(folder, "'*/PhenotypeFiles/*.data_dictionary.MULTI.tar.gz'"),
+                find(folder, "'*/PhenotypeFiles/*.data_dict.xml'"))
+
+message("detected ", length(dict_files), " dictionary files")
+
+message("parsing...")
+sink(stderr())
+ans <- llply(dict_files, parseDict, .progress = progress_text(style = 3))
+sink()
+ans <- do.call(c, ans)
+message("done.")
+
+message("writing on stdout...")
+dput(ans)
+message("analysis completed.")
