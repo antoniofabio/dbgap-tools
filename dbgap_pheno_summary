@@ -1,0 +1,154 @@
+#!/usr/bin/env Rscript
+
+suppressMessages({
+  library(reshape)
+  library(plyr)
+})
+
+args <- commandArgs(trailingOnly = TRUE)
+stopifnot(length(args) == 1)
+
+folder <- args[1]
+
+find <- function(where, what) {
+  cmd <- sprintf("find %s -path %s", shQuote(where), what)
+  system(cmd, intern = TRUE)
+}
+
+parse_dataset <- function(filename) {
+
+  stopifnot(file.exists(filename))
+
+  ans <- list(filename = basename(filename),
+              header = NULL,
+              var_ids = NULL,
+              body = NULL)
+
+  parse_header <- function(con) {
+    header <- c()
+
+    repeat {
+
+      line <- suppressWarnings(readLines(con, n = 1))
+
+      if(length(line) == 0 || line == "") {
+        break
+      }
+
+      header <- c(header, line)
+
+    }
+
+    studyLine <- grepl("^# Study accession: .+$", header)
+    datasetLine <- grepl("^# Table accession: .+$", header)
+    consentGroupLine <- grepl("^# Consent group: .+$", header)
+
+    return(list(study_id = if(any(studyLine)) sub("# Study accession: ", "", header[studyLine][1]) else NA_character_,
+                dataset_id = if(any(datasetLine)) sub("# Table accession: ", "", header[datasetLine][1]) else NA_character_,
+                consent_group = if(any(consentGroupLine)) sub("# Consent group: ", "", header[consentGroupLine][1]) else NA_character_,
+                comments = header[!(studyLine | datasetLine | consentGroupLine)]))
+
+  }
+
+  feof <- function(con) {
+    l <- suppressWarnings(readLines(con, n = 1))
+    on.exit(pushBack(l, con))
+    return(length(l) == 0)
+  }
+
+  ph.con <- gzfile(filename, open = "r")
+  on.exit({close(ph.con)})
+
+  ans$header <- parse_header(ph.con)
+  if(feof(ph.con)) {
+    return(ans)
+  }
+
+  temp <- suppressWarnings(readLines(ph.con, n = 2))
+  if(length(temp) != 2) {
+    return(ans)
+  }
+  temp <- strsplit(temp, "\t")
+  if(length(temp[[1]]) != length(temp[[2]])) {
+    return(ans)
+  }
+  var_ids <- data.frame(var_name = temp[[2]],
+                        var_id = temp[[1]],
+                        stringsAsFactors = FALSE)
+  ans$var_ids <- var_ids
+
+  col.names <- var_ids$var_name
+
+  body <- tryCatch({
+    suppressWarnings({
+      read.table(ph.con,
+                 header = FALSE,
+                 sep = "\t",
+                 quote = "",
+                 comment.char = "",
+                 col.names = col.names,
+                 check.names = FALSE,
+                 as.is = TRUE,
+                 fill = TRUE)
+    })
+  }, error = function(e) e)
+
+  ans$body <- body
+
+  return(ans)
+
+}
+
+body <- function(x) x$body
+dataset <- function(x) x$header$dataset_id
+study <- function(x) x$header$study_id
+consent_group <- function(x) x$header$consent_group
+var_ids <- function(x) x$var_ids
+
+summarize_dataset <- function(x) {
+  bd <- body(x)
+  if(!is.data.frame(bd)) {
+    return(NULL)
+  }
+  dat <- laply(bd, is.na)
+  dimnames(dat) <- list(var_name = names(bd),
+                        sample = NULL)
+  ans <-
+      ddply(melt(dat), .(var_name), summarize,
+            missing = sum(value),
+            nonMissing = sum(!value))
+  ans$study_id <- sub("\\.p[0-9]+$", "", study(x))
+  ans$dataset_id <- sub("\\.p[0-9]+\\.c[0-9]+$", "", dataset(x))
+  ans$consent_group <- consent_group(x)
+  if(grepl("^.*\\.c([0-9]+)$", dataset(x))) {
+    ans$consent_number <- sub("^.*\\.c([0-9]+)$", "\\1", dataset(x))
+  } else {
+    ans$consent_number <- NA_character_
+  }
+
+  ans <- merge(var_ids(x), ans, by = "var_name", all = TRUE)
+  ans$filename <- x$filename
+
+  return(ans)
+}
+
+##
+## MAIN LOOP
+##
+
+dataset_files <- find(folder, "'*/PhenotypeFiles/*.txt.gz'")
+message("detected ", length(dataset_files), " phenotype files")
+
+message("parsing and summarizing...")
+sink(stderr())
+ans <- ldply(dataset_files, function(x) {
+  summarize_dataset(parse_dataset(x))
+}, .progress = progress_text(style = 3))
+sink()
+message("done.")
+
+message("writing on stdout...")
+write.table(ans,
+            file = "",
+            quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t")
+message("analysis completed.")
