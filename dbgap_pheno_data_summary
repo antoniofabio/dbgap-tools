@@ -18,7 +18,7 @@ find <- function(where, what) {
 }
 
 id_root <- function(string) {
-  sub("^(.+)\\.p([0-9]+)(\\.c(0-9)+)?$", "\\1", string)
+  sub("\\.c[0-9]+", "", sub("\\.p[0-9]+", "", string))
 }
 
 id_group <- function(string) {
