@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -e
+set -u
+set -o pipefail
+
+FOLDER=$1
+D="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+${D}/table_merge \
+  --by=var_id,dataset_id,study_id \
+  --suffixes=,_meta \
+  --all.x --all.y \
+  <(${D}/dbgap_pheno_data_summary "${FOLDER}" 2> /dev/null) \
+  <(${D}/dbgap_pheno_dict "${FOLDER}" 2> /dev/null | ${D}/dbgap_pheno_meta 2> /dev/null)
