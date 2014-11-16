@@ -175,6 +175,9 @@ ans <- ldply(dataset_files, function(x) {
 sink()
 message("done.")
 
+message("removing duplicates...")
+ans <- unique(ans)
+
 message("writing on stdout...")
 write.table(ans,
             file = "",
