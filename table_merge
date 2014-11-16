@@ -9,6 +9,7 @@ option_list <-
         make_option("--by", help = "by columns", default = NULL),
         make_option("--by.x", help = "x by columns", default = NULL),
         make_option("--by.y", help = "y by columns", default = NULL),
+        make_option("--all", help = "all X and all Y", default = FALSE, action = "store_true"),
         make_option("--all.x", help = "all X", default = FALSE, action = "store_true"),
         make_option("--all.y", help = "all Y", default = FALSE, action = "store_true"),
         make_option("--suffixes", help = "common colnames suffixes",
@@ -24,17 +25,21 @@ args <- args$args
 
 stopifnot(length(args) == 2)
 
-tableX <- read.table(args[1],
+c1 <- file(args[1], open = "r", raw = TRUE)
+tableX <- read.table(c1,
                      header = TRUE,
                      sep = "\t",
                      quote = "", comment.char = "",
                      as.is = TRUE)
+close(c1)
 
-tableY <- read.table(args[2],
+c2 <- file(args[2], open = "r", raw = TRUE)
+tableY <- read.table(c2,
                      header = TRUE,
                      sep = "\t",
                      quote = "", comment.char = "",
                      as.is = TRUE)
+close(c2)
 
 if(is.null(opts$by.x)) {
   opts$by.x <- opts$by
@@ -42,6 +47,15 @@ if(is.null(opts$by.x)) {
 if(is.null(opts$by.y)) {
   opts$by.y <- opts$by
 }
+
+if(opts$all) {
+  opts$all.x <- opts$all.y <- TRUE
+}
+
+message("options:")
+sink(stderr())
+str(opts)
+sink()
 
 ans <- merge(tableX, tableY,
              by.x = strsplit(opts$by.x, ",")[[1]],
