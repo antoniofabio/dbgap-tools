@@ -5,6 +5,8 @@ suppressMessages({
   library(plyr)
 })
 
+options(stringsAsFactors = FALSE)
+
 args <- commandArgs(trailingOnly = TRUE)
 stopifnot(length(args) == 1)
 
@@ -13,6 +15,34 @@ folder <- args[1]
 find <- function(where, what) {
   cmd <- sprintf("find %s -path %s", shQuote(where), what)
   system(cmd, intern = TRUE)
+}
+
+id_root <- function(string) {
+  sub("^(.+)\\.p([0-9]+)(\\.c(0-9)+)?$", "\\1", string)
+}
+
+id_group <- function(string) {
+  rge <- "^.*\\.p([0-9]+)(\\..*)?$"
+  if(grepl(rge, string)) {
+    sub(rge, "\\1", string)
+  } else {
+    NA_character_
+  }
+}
+
+id_consent <- function(string) {
+  rge <- "^.*\\.c([0-9]+)(\\..*)?$"
+  if(grepl(rge, string)) {
+    sub(rge, "\\1", string)
+  } else {
+    NA_character_
+  }
+}
+
+parse_varid <- function(string) {
+  data.frame(var_id = id_root(string),
+             patients_group = id_group(string),
+             consent_number = id_consent(string))
 }
 
 parse_dataset <- function(filename) {
@@ -43,10 +73,13 @@ parse_dataset <- function(filename) {
     datasetLine <- grepl("^# Table accession: .+$", header)
     consentGroupLine <- grepl("^# Consent group: .+$", header)
 
-    return(list(study_id = if(any(studyLine)) sub("# Study accession: ", "", header[studyLine][1]) else NA_character_,
+    ans <- list(study_id = if(any(studyLine)) sub("# Study accession: ", "", header[studyLine][1]) else NA_character_,
                 dataset_id = if(any(datasetLine)) sub("# Table accession: ", "", header[datasetLine][1]) else NA_character_,
                 consent_group = if(any(consentGroupLine)) sub("# Consent group: ", "", header[consentGroupLine][1]) else NA_character_,
-                comments = header[!(studyLine | datasetLine | consentGroupLine)]))
+                comments = header[!(studyLine | datasetLine | consentGroupLine)])
+    ans$dataset_id <- id_root(ans$dataset_id)
+
+    return(ans)
 
   }
 
@@ -72,9 +105,8 @@ parse_dataset <- function(filename) {
   if(length(temp[[1]]) != length(temp[[2]])) {
     return(ans)
   }
-  var_ids <- data.frame(var_name = temp[[2]],
-                        var_id = temp[[1]],
-                        stringsAsFactors = FALSE)
+  var_ids <- data.frame(var_name = temp[[2]], ldply(temp[[1]], parse_varid))
+
   ans$var_ids <- var_ids
 
   col.names <- var_ids$var_name
@@ -120,11 +152,6 @@ summarize_dataset <- function(x) {
   ans$study_id <- sub("\\.p[0-9]+$", "", study(x))
   ans$dataset_id <- sub("\\.p[0-9]+\\.c[0-9]+$", "", dataset(x))
   ans$consent_group <- consent_group(x)
-  if(grepl("^.*\\.c([0-9]+)$", dataset(x))) {
-    ans$consent_number <- sub("^.*\\.c([0-9]+)$", "\\1", dataset(x))
-  } else {
-    ans$consent_number <- NA_character_
-  }
 
   ans <- merge(var_ids(x), ans, by = "var_name", all = TRUE)
   ans$filename <- x$filename
