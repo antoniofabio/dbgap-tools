@@ -23,7 +23,11 @@ attr2df <- function(attrs) {
 
 getif <- function(lst, what) {
   if(what %in% names(lst)) {
-    return(lst[[ what ]])
+    ans <- lst[[ what ]]
+    if(is.null(ans)) {
+      return(NA_character_)
+    }
+    return(ans)
   } else {
     return(NA_character_)
   }
