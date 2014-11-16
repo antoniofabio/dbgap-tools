@@ -48,7 +48,7 @@ message("parsing...")
 sink(stderr())
 ans <- llply(dict_files, parseDict, .progress = progress_text(style = 3))
 sink()
-ans <- do.call(c, ans)
+ans <- do.call(c, do.call(c, ans))
 message("done.")
 
 message("writing on stdout...")
