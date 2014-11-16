@@ -149,6 +149,7 @@ summarize_dataset <- function(x) {
       ddply(melt(dat), .(var_name), summarize,
             missing = sum(value),
             nonMissing = sum(!value))
+  ans$data_type <- laply(bd, storage.mode)
   ans$study_id <- sub("\\.p[0-9]+$", "", study(x))
   ans$dataset_id <- sub("\\.p[0-9]+\\.c[0-9]+$", "", dataset(x))
   ans$consent_group <- consent_group(x)
