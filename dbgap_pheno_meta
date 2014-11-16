@@ -16,9 +16,9 @@ close(input.c)
 message("done: read data from ", length(lst), " tables")
 
 attr2df <- function(attrs) {
-  data.frame(study_id = attrs['study_id'],
-             dataset_id = attrs['id'],
-             participant_set = attrs['participant_set'])
+  data.frame(study_id = getif(attrs, 'study_id'),
+             dataset_id = getif(attrs, 'id'),
+             participant_set = getif(attrs, 'participant_set'))
 }
 
 getif <- function(lst, what) {
