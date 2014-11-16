@@ -1,0 +1,57 @@
+#!/usr/bin/env Rscript
+
+suppressMessages({
+  library(optparse)
+})
+
+option_list <-
+    list(
+        make_option("--by", help = "by columns", default = NULL),
+        make_option("--by.x", help = "x by columns", default = NULL),
+        make_option("--by.y", help = "y by columns", default = NULL),
+        make_option("--all.x", help = "all X", default = FALSE, action = "store_true"),
+        make_option("--all.y", help = "all Y", default = FALSE, action = "store_true"),
+        make_option("--suffixes", help = "common colnames suffixes",
+                    default = c(".x,.y")))
+
+parser <- OptionParser(usage = "%prog [options] tableX tableY > tableXY",
+                       description = "merge two tables",
+                       option_list = option_list)
+args <- parse_args(parser, positional_arguments = TRUE)
+
+opts <- args$options
+args <- args$args
+
+stopifnot(length(args) == 2)
+
+tableX <- read.table(args[1],
+                     header = TRUE,
+                     sep = "\t",
+                     quote = "", comment.char = "",
+                     as.is = TRUE)
+
+tableY <- read.table(args[2],
+                     header = TRUE,
+                     sep = "\t",
+                     quote = "", comment.char = "",
+                     as.is = TRUE)
+
+if(is.null(opts$by.x)) {
+  opts$by.x <- opts$by
+}
+if(is.null(opts$by.y)) {
+  opts$by.y <- opts$by
+}
+
+ans <- merge(tableX, tableY,
+             by.x = strsplit(opts$by.x, ",")[[1]],
+             by.y = strsplit(opts$by.y, ",")[[1]],
+             all.x = opts$all.x,
+             all.y = opts$all.y,
+             suffixes = strsplit(opts$suffixes, ",")[[1]])
+
+write.table(ans,
+            row.names = FALSE,
+            col.names = TRUE,
+            quote = FALSE,
+            sep = "\t")
