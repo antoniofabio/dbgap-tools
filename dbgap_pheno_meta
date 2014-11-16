@@ -1,0 +1,52 @@
+#!/usr/bin/env Rscript
+
+suppressMessages({
+  library(plyr)
+})
+
+options(stringsAsFactors = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+stopifnot(length(args) == 0)
+
+message("reading dictionary data from stdin...")
+input.c <- file("stdin", open = "r", raw = TRUE)
+lst <- dget(file = input.c)
+close(input.c)
+message("done: read data from ", length(lst), " tables")
+
+attr2df <- function(attrs) {
+  data.frame(study_id = attrs['study_id'],
+             dataset_id = attrs['id'],
+             participant_set = attrs['participant_set'])
+}
+
+v2df <- function(v) {
+  data.frame(var_name = v$name,
+             var_description = v$description,
+             var_type = v$type,
+             var_id = v$.attrs['id'])
+}
+
+parseItem <- function(item) {
+  attrs.df <- attr2df(item$.attrs)
+  vars.df <- ldply(unname(item[names(item) == "variable"]), v2df)
+  merge(attrs.df,
+        vars.df,
+        by = c())
+}
+
+message("processing data...")
+sink(stderr())
+ans <- ldply(lst, parseItem, .progress = progress_text(style = 3))
+sink()
+message("done.")
+
+message("removing duplicates...")
+ans <- unique(ans)
+
+message("writing on stdout...")
+write.table(ans,
+            file = "",
+            quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t")
+message("analysis completed.")
