@@ -21,11 +21,31 @@ attr2df <- function(attrs) {
              participant_set = attrs['participant_set'])
 }
 
+getif <- function(lst, what) {
+  if(what %in% names(lst)) {
+    return(lst[[ what ]])
+  } else {
+    return(NA_character_)
+  }
+}
+
 v2df <- function(v) {
-  data.frame(var_name = v$name,
-             var_description = v$description,
-             var_type = v$type,
-             var_id = v$.attrs['id'])
+  values <- v[names(v) == "value"]
+  if(length(values) > 0) {
+    labels <- sapply(values, getif, what = "text")
+    codes <- sapply(lapply(values, getif, what = ".attrs"), getif, 'code')
+    legend <- paste(paste(codes, "=", shQuote(labels)), collapse = ", ")
+  } else {
+    labels <- NA_character_
+    codes <- NA_character_
+    legend <- NA_character_
+  }
+  data.frame(var_id = v$.attrs['id'],
+             var_name = getif(v, "name"),
+             var_description = getif(v, "description"),
+             var_type = getif(v, "type"),
+             var_unit = getif(v, "unit"),
+             var_legend = legend)
 }
 
 parseItem <- function(item) {
