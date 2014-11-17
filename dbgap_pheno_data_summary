@@ -103,7 +103,11 @@ parse_dataset <- function(filename) {
   }
   temp <- strsplit(temp, "\t")
   if(length(temp[[1]]) != length(temp[[2]])) {
-    return(ans)
+    if(length(temp[[1]]) == (length(temp[[2]]) - 1)) {
+      temp[[1]] <- c("##", sub("^#+", "", temp[[1]][1]), temp[[1]][-1])
+    } else {
+      return(ans)
+    }
   }
   var_ids <- data.frame(var_name = temp[[2]], ldply(temp[[1]], parse_varid))
 
@@ -111,19 +115,34 @@ parse_dataset <- function(filename) {
 
   col.names <- var_ids$var_name
 
+  ## Sometimes the phenotype tables contain an extra
+  ## trailing tabulation character on each line:
+  ## remove it, if that's the case
+  ph.lines <- suppressWarnings(readLines(ph.con))
+  fields <- strsplit(ph.lines, "\t")
+  n.fields <- sapply(fields, length)
+  if(!all(n.fields <= length(col.names))) {
+    stop("parsing phenotype file ", shQuote(x), ": expected ", length(col.names),
+         " columns; found between ", min(n.fields), " and ", max(n.fields))
+  }
+  ph.lines <- paste(sapply(fields, paste, collapse = "\t"),
+                    collapse = "\n")
+
+  txt.con <- textConnection(ph.lines)
   body <- tryCatch({
-    suppressWarnings({
-      read.table(ph.con,
-                 header = FALSE,
-                 sep = "\t",
-                 quote = "",
-                 comment.char = "",
-                 col.names = col.names,
-                 check.names = FALSE,
-                 as.is = TRUE,
-                 fill = TRUE)
-    })
-  }, error = function(e) e)
+    read.table(txt.con,
+               header = FALSE,
+               sep = "\t",
+               quote = "",
+               comment.char = "",
+               col.names = col.names,
+               check.names = FALSE,
+               as.is = TRUE,
+               fill = TRUE)
+  }, error = function(e) {
+    return(e)
+  })
+  close(txt.con)
 
   ans$body <- body
 
