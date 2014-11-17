@@ -135,6 +135,7 @@ parse_dataset <- function(filename) {
                sep = "\t",
                quote = "",
                comment.char = "",
+               na.strings = c("", ".", "NA"),
                col.names = col.names,
                check.names = FALSE,
                as.is = TRUE,
