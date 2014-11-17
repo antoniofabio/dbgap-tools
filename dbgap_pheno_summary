@@ -1,15 +1,68 @@
-#!/bin/bash
+#!/usr/bin/env Rscript
 
-set -e
-set -u
-set -o pipefail
+suppressMessages({
+  library(doMC)
+  registerDoMC(cores = 2)
+  library(plyr)
+})
 
-FOLDER=$1
-D="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+## gets setup folder
+D <- dirname(sub("^--file=", "", grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
 
-${D}/table_merge \
-  --by=var_id,dataset_id,study_id \
-  --suffixes=,_meta \
-  --all.x --all.y \
-  <(${D}/dbgap_pheno_data_summary "${FOLDER}" 2> /dev/null) \
-  <(${D}/dbgap_pheno_dict "${FOLDER}" 2> /dev/null | ${D}/dbgap_pheno_meta 2> /dev/null)
+args <- commandArgs(trailingOnly = TRUE)
+
+stopifnot(length(args) == 1)
+
+FOLDER <- args[1]
+
+pipe.data <-
+    pipe(sprintf("%s/dbgap_pheno_data_summary %s 2> /dev/null",
+                 D, shQuote(FOLDER)),
+         open = "r")
+pipe.meta <-
+    pipe(sprintf("%s/dbgap_pheno_dict %s 2> /dev/null | %s/dbgap_pheno_meta 2> /dev/null",
+                 D, shQuote(FOLDER), D),
+         open = "r")
+
+on.exit({
+  close(pipe.data)
+  close(pipe.meta)
+})
+
+tabs <- llply(list(dat = pipe.data,
+                   meta = pipe.meta),
+              read.table,
+              header = TRUE,
+              sep = "\t",
+              quote = "", comment.char = "",
+              as.is = TRUE,
+              check.names = FALSE,
+              .parallel = TRUE)
+
+a.any <- merge(tabs$dat, tabs$meta,
+                by = c("var_id", "dataset_id", "study_id"),
+                suffixes = c("", "_meta"),
+                all = TRUE)
+a.any$var_id_meta <- a.any$var_id
+
+missingMeta.flag <-
+    with(a.any, is.na(var_name_meta) & (var_id != "##"))
+missingMeta.ids <- unique(subset(a.any, missingMeta.flag,
+                                 select = c(var_id, dataset_id, study_id)))
+
+a.missingMeta <- merge(merge(tabs$dat, missingMeta.ids),
+                       tabs$meta,
+                       by = c("var_name", "dataset_id", "study_id"),
+                       all.x = TRUE, all.y = FALSE,
+                       suffixes = c("", "_meta"))
+a.missingMeta$var_name_meta <- a.missingMeta$var_name
+
+ans.A <- subset(a.any, !missingMeta.flag)
+ans.B <- a.missingMeta[names(ans.A)]
+ans <- rbind(ans.A, ans.B)
+
+write.table(ans,
+            row.names = FALSE,
+            col.names = TRUE,
+            quote = FALSE,
+            sep = "\t")
