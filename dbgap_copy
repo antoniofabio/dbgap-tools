@@ -5,6 +5,8 @@ suppressMessages({
   library(plyr)
 })
 
+options(stringsAsFactors = FALSE)
+
 option_list <-
     list(
         make_option("--pheno", help = "phenotype data", default = FALSE, action = "store_true"),
@@ -32,11 +34,13 @@ dir.create(to, showWarnings = FALSE, recursive = TRUE)
 
 if(opts$pheno) {
 
-  phenotype_files <- system(sprintf("cd %s; find . -name 'PhenotypeFiles' -type d",
-                                    from), intern = TRUE)
+  phenotype_files <- c(system(sprintf("cd %s; find . -name 'PhenotypeFiles' -type d", from), intern = TRUE),
+                       system(sprintf("cd %s; find . -name 'phenotype' -type d", from), intern = TRUE))
+  message("detected ", length(phenotype_files), " phenotype folders")
 
   if(length(phenotype_files) > 0) {
 
+    message(" copying...")
     destination_folders <- file.path(to, dirname(phenotype_files))
     ignore <- laply(destination_folders, dir.create, showWarnings = FALSE, recursive=TRUE)
     stopifnot(all(file.exists(destination_folders)))
@@ -55,35 +59,49 @@ if(opts$pheno) {
 if(opts$plink) {
 
   ## 1. get full paths to all .tar files
-  tarfiles <- system(sprintf("cd %s && find . -name '*.tar'", from), intern = TRUE)
-  tab <- data.frame(tarfile = tarfiles)
+  tarfiles <-
+    c(system(sprintf("cd %s && find . -name 'phg*.tar'", from), intern = TRUE),
+      system(sprintf("cd %s && find . -name 'phg*.tar.gz'", from), intern = TRUE))
 
-  ## 2. get full path to all files contained in each tar file
-  full_files_listing <-
+  message("detected ", length(tarfiles), " .tar files")
+  if(length(tarfiles) > 0) {
+    tab <- data.frame(tarfile = tarfiles)
+
+    ## 2. get full path to all files contained in each tar file
+    message(" inspecting tar files contents...")
+    full_files_listing <-
       ddply(tab, .(tarfile), function(x) {
         data.frame(file = untar(file.path(from, x$tarfile), list = TRUE))
-      })
+      }, .progress = progress_text(style = 1))
 
-  plink_files <- subset(full_files_listing,
-                        grepl("\\.fam", file)
-                        | grepl("\\.bim", file)
-                        | grepl("\\.bed", file)
-                        | grepl("\\.ped", file)
-                        | grepl("\\.tfam", file)
-                        | grepl("\\.tped", file)
-                        )
+    plink_files <- subset(full_files_listing,
+                          grepl("\\.fam", file)
+                          | grepl("\\.bim", file)
+                          | grepl("\\.bed", file)
+                          | grepl("\\.ped", file)
+                          | grepl("\\.tfam", file)
+                          | grepl("\\.tped", file)
+                          )
 
-  d_ply(plink_files, .(tarfile), splat(function(tarfile, file) {
-    tarfile <- tarfile[1]
-    P <- file.path(to,
-                   dirname(tarfile),
-                   sub("\\.tar(\\.gz)$", "", basename(tarfile)))
-    dir.create(P, showWarnings = FALSE, recursive = TRUE)
-    message(" extracting from tar file ", shQuote(tarfile), "...")
-    untar(tarfile = file.path(from, tarfile),
-          files = file,
-          exdir = P)
-  }))
+    message(" done: they contain ", nrow(plink_files), " plink-related files\n")
+
+    if(nrow(plink_files) > 0) {
+
+      d_ply(plink_files, .(tarfile), splat(function(tarfile, file) {
+        tarfile <- tarfile[1]
+        P <- file.path(to,
+                       dirname(tarfile),
+                       sub("\\.tar(\\.gz)$", "", basename(tarfile)))
+        dir.create(P, showWarnings = FALSE, recursive = TRUE)
+        message("  extracting from tar file ", shQuote(tarfile), "...")
+        untar(tarfile = file.path(from, tarfile),
+              files = file,
+              exdir = P)
+      }))
+
+    }
+
+  }
 
 }
 
@@ -91,18 +109,20 @@ if(opts$pdf) {
 
   pdf_files <- system(sprintf("cd %s; find . -name '*.pdf' -type f",
                               from), intern = TRUE)
+  message("detected ", length(pdf_files), " pdf files")
 
   if(length(pdf_files) > 0) {
 
-    d_ply(pdf_files, .(file), splat(function(file) {
+    message("copying...")
+    l_ply(pdf_files, function(file) {
       file <- file[1]
       P <- file.path(to,
                      dirname(file),
                      basename(file))
       dir.create(dirname(P), showWarnings = FALSE, recursive = TRUE)
-      file.copy(from = file.path(ARCHIVE_PREFIX, file),
-                to = P)
-    }))
+      stopifnot(file.copy(from = file.path(from, file),
+                          to = P))
+    })
 
   }
 
