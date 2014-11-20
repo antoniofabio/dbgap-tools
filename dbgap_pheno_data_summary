@@ -184,7 +184,8 @@ summarize_dataset <- function(x) {
 ## MAIN LOOP
 ##
 
-dataset_files <- find(folder, "'*/PhenotypeFiles/*.txt.gz'")
+dataset_files <- c(find(folder, "'*/PhenotypeFiles/*.txt.gz'"),
+                   find(folder, "'*/phenotype/*.txt.gz'"))
 message("detected ", length(dataset_files), " phenotype files")
 
 message("parsing and summarizing...")

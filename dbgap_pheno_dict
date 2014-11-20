@@ -40,7 +40,9 @@ parseDict <- function(fname) {
 ##
 
 dict_files <- c(find(folder, "'*/PhenotypeFiles/*.data_dictionary.MULTI.tar.gz'"),
-                find(folder, "'*/PhenotypeFiles/*.data_dict.xml'"))
+                find(folder, "'*/PhenotypeFiles/*.data_dict.xml'"),
+                find(folder, "'*/phenotype/*.data_dictionary.MULTI.tar.gz'"),
+                find(folder, "'*/phenotype/*.data_dict.xml'"))
 
 message("detected ", length(dict_files), " dictionary files")
 
