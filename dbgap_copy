@@ -131,7 +131,7 @@ if(opts$pdf) {
 
 if(!is.null(opts$ext)) {
 
-  ext_files <- system(sprintf("cd %s; find . -name '*.%s' -type f", from, opts$ext), intern = TRUE)
+  ext_files <- system(sprintf("cd %s; find . -name '*%s' -type f", from, opts$ext), intern = TRUE)
   message("detected ", length(ext_files), " files with extension ", shQuote(opts$ext))
 
   if(length(ext_files) > 0) {
