@@ -148,4 +148,42 @@ if(!is.null(opts$ext)) {
     })
 
   }
+
+  tarfiles <-
+    c(system(sprintf("cd %s && find . -name 'phg*.tar'", from), intern = TRUE),
+      system(sprintf("cd %s && find . -name 'phg*.tar.gz'", from), intern = TRUE))
+
+  if(length(tarfiles) > 0) {
+    tab <- data.frame(tarfile = tarfiles)
+
+    ## 2. get full path to all files contained in each tar file
+    message("detected ", length(tarfiles), " .tar files")
+    message(" inspecting tar files contents...")
+    full_files_listing <-
+      ddply(tab, .(tarfile), function(x) {
+        data.frame(file = untar(file.path(from, x$tarfile), list = TRUE))
+      }, .progress = progress_text(style = 1))
+
+    ext_files_bis <- subset(full_files_listing, grepl(sprintf(".*%s", opts$ext), file))
+
+    message(" done: they contain ", nrow(ext_files_bis), " ", shQuote(opts$ext), " files\n")
+
+    if(nrow(ext_files_bis) > 0) {
+
+      d_ply(ext_files_bis, .(tarfile), splat(function(tarfile, file) {
+        tarfile <- tarfile[1]
+        P <- file.path(to,
+                       dirname(tarfile),
+                       sub("\\.tar(\\.gz)$", "", basename(tarfile)))
+        dir.create(P, showWarnings = FALSE, recursive = TRUE)
+        message("  extracting from tar file ", shQuote(tarfile), "...")
+        untar(tarfile = file.path(from, tarfile),
+              files = file,
+              exdir = P)
+      }))
+
+    }
+
+  }
+
 }
