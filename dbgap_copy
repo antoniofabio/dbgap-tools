@@ -11,7 +11,8 @@ option_list <-
     list(
         make_option("--pheno", help = "phenotype data", default = FALSE, action = "store_true"),
         make_option("--plink", help = "plink data", default = FALSE, action = "store_true"),
-        make_option("--pdf", help = "report (pdf) data", default = FALSE, action = "store_true")
+        make_option("--pdf", help = "report (pdf) data", default = FALSE, action = "store_true"),
+        make_option("--ext", help = "by extension [default: OFF]", default = NULL)
         )
 
 parser <- OptionParser(usage = "%prog [options] from to",
@@ -126,4 +127,25 @@ if(opts$pdf) {
 
   }
 
+}
+
+if(!is.null(opts$ext)) {
+
+  ext_files <- system(sprintf("cd %s; find . -name '*.%s' -type f", from, opts$ext), intern = TRUE)
+  message("detected ", length(ext_files), " files with extension ", shQuote(opts$ext))
+
+  if(length(ext_files) > 0) {
+
+    message("copying...")
+    l_ply(ext_files, function(file) {
+      file <- file[1]
+      P <- file.path(to,
+                     dirname(file),
+                     basename(file))
+      dir.create(dirname(P), showWarnings = FALSE, recursive = TRUE)
+      stopifnot(file.copy(from = file.path(from, file),
+                          to = P))
+    })
+
+  }
 }
